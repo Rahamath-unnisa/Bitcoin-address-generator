@@ -1,0 +1,59 @@
+import secrets
+import hashlib
+from tinyec import registry 
+import binascii
+import base58
+import io
+def address_generator(username):
+
+    # Step 1: Generate secure random number
+    random_number = secrets.randbits(256)
+    print("Random Number:", random_number)
+
+    # Step 2: Create Private Key (SHA-256 hash of random number)
+    private_key = hashlib.sha256(random_number.to_bytes(32, 'big')).hexdigest()
+    print("private:",private_key)
+
+    # Step 3: Generate Public Key using elliptic curve
+    curve = registry.get_curve('secp256r1')  # You could use 'secp256k1' for Bitcoin
+    G = curve.g  # Generator point of the curve
+    pr = int(private_key, 16)  # Convert private key hex to integer
+    pu = pr * G  # Public key point (x, y)
+
+    # Step 4: Compressed Public Key
+    x_byte = pu.x.to_bytes(32, 'big')
+    prefix = b'\x02' if pu.y % 2 == 0 else b'\x03'
+    pub = prefix + x_byte
+    public_key_hex = binascii.hexlify(pub).decode()
+
+
+    # Step 5: Address generation (Base58Check encoding)
+    public_key_bytes = bytes.fromhex(public_key_hex)
+    print("public key:",public_key_bytes)
+
+    # Perform SHA-256 then RIPEMD-160
+    hash1 = hashlib.sha256(public_key_bytes).digest()
+    ripemd160 = hashlib.new('ripemd160')
+    ripemd160.update(hash1)
+    hash2 = ripemd160.digest()
+
+    # Add network byte (0x00 for mainnet)
+    prefixed = b'\x00' + hash2
+
+    # Create checksum (first 4 bytes of double SHA-256)
+    checksum = hashlib.sha256(hashlib.sha256(prefixed).digest()).digest()[:4]
+
+    # Create final payload
+    payload = prefixed + checksum
+
+    # Encode using Base58
+    address = base58.b58encode(payload).decode()
+    return {
+        "username":username,
+        "private_key": private_key,
+        "public_key":public_key_hex,
+        "address":address
+    }
+
+
+

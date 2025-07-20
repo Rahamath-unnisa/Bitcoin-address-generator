@@ -1,0 +1,77 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import sqlite3
+from bitAddress import address_generator
+app = FastAPI()
+
+# Database setup
+def init_db():
+    conn = sqlite3.connect("bitcoin.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS keys (
+            username TEXT PRIMARY KEY,
+            private_key TEXT,
+            public_key TEXT,
+            address TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# Request model
+class KeyData(BaseModel):
+    username: str
+    private_key: str
+    public_key: str
+    address: str
+
+# POST route
+@app.post("/store_keys/")
+def store_keys(data: KeyData):
+    normalized_username = data.username.strip().lower()
+    conn = sqlite3.connect("bitcoin.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM keys WHERE username = ?", (normalized_username,))
+    existing = cursor.fetchone()
+
+    if existing:
+        conn.close()
+        return {
+            "message": "User already exists. Returning stored keys.",
+            "private_key": existing[1],
+            "public_key": existing[2],
+            "address": existing[3]
+        }
+
+    cursor.execute("""
+        INSERT INTO keys (username, private_key, public_key, address)
+        VALUES (?, ?, ?, ?)
+    """, (normalized_username, data.private_key, data.public_key, data.address))
+    conn.commit()
+    conn.close()
+
+    return {"message": "Keys stored successfully."}
+
+# GET route
+@app.get("/get_keys/{username}")
+def get_keys(username: str):
+    normalized_username = username.strip().lower()
+    conn = sqlite3.connect("bitcoin.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT private_key, public_key, address FROM keys WHERE username = ?", (normalized_username,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        return {
+            "private_key": result[0],
+            "public_key": result[1],
+            "address": result[2]
+        }
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
