@@ -89,6 +89,8 @@ GET    | /get_keys/{username}   | Check if user already exists
 MIT License
 
 ---
+📄 You can read the full project report with output screenshots [here](Bitcoin_Address_Generator_Report.pdf)
+
 
 ## Author
 
